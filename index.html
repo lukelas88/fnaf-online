@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Five Nights: Ultra Realism</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+    
+    <style>
+        /* ==================== AESTHETICS ==================== */
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Arial', sans-serif; user-select: none; }
+        
+        /* CRT Scanlines & Vignette */
+        #screen-fx {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 900;
+            background: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,1) 100%);
+            background-size: 100% 4px, 100% 100%;
+        }
+
+        /* Static Noise (Animated via CSS) */
+        #static-noise {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 850;
+            background-image: url('https://media.giphy.com/media/oEI9uBYSzLpBK/giphy.gif');
+            opacity: 0.08; mix-blend-mode: screen;
+        }
+
+        /* --- UI LAYER --- */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; }
+
+        /* Menu */
+        #menu {
+            width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; color: white;
+        }
+        h1 { font-family: 'Courier New'; font-size: 60px; text-shadow: 4px 4px 0 #a00; margin: 0; }
+        .start-btn { 
+            background: transparent; border: 2px solid white; color: white; padding: 15px 40px; 
+            font-size: 24px; margin-top: 30px; cursor: pointer; font-family: 'Courier New'; 
+            transition: 0.3s;
+        }
+        .start-btn:hover { background: white; color: black; }
+
+        /* HUD */
+        #hud { display: none; width: 100%; height: 100%; }
+
+        #clock {
+            position: absolute; top: 30px; right: 40px;
+            font-size: 40px; color: white; font-weight: bold; text-shadow: 2px 2px 0 #000;
+        }
+
+        #power-stats {
+            position: absolute; bottom: 30px; left: 40px;
+            font-size: 24px; color: white; text-shadow: 2px 2px 0 #000;
+            font-family: 'Courier New';
+        }
+        .usage-box { display: flex; align-items: center; margin-top: 5px; }
+        .usage-blk { width: 25px; height: 12px; border: 1px solid #555; background: #222; margin-right: 3px; }
+        .u-on { background: #adff2f; box-shadow: 0 0 5px #adff2f; }
+
+        /* --- MONITOR SYSTEM --- */
+        
+        /* The Flip Animation Container */
+        #monitor-panel {
+            position: absolute; bottom: -100%; left: 0; width: 100%; height: 100%;
+            background: #222; border-top: 10px solid #444;
+            transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1100; pointer-events: auto;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .monitor-up { bottom: 0 !important; }
+
+        /* Camera Screen Content */
+        #cam-view {
+            width: 95%; height: 90%; background: #000; border: 5px solid #444; position: relative;
+            box-shadow: inset 0 0 50px #000; overflow: hidden;
+        }
+
+        /* Camera Label Text (Top Left) */
+        #cam-label {
+            position: absolute; top: 30px; left: 40px; font-family: sans-serif;
+            color: white; font-size: 30px; text-shadow: 2px 2px 0 black; z-index: 10;
+        }
+        .blink-dot {
+            display: inline-block; width: 20px; height: 20px; background: red; border-radius: 50%;
+            margin-right: 10px; animation: blink 1s infinite;
+        }
+
+        /* THE MAP (Realistic Layout) */
+        #map-overlay {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 320px; height: 220px; z-index: 20;
+        }
+        
+        .map-btn {
+            position: absolute; width: 45px; height: 30px; 
+            background: #555; border: 2px solid #888; color: #ccc;
+            font-size: 11px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; opacity: 0.7; font-weight: bold;
+        }
+        .map-btn:hover { background: #888; opacity: 1; }
+        .map-active { background: #adff2f; color: black; border-color: #fff; opacity: 1; box-shadow: 0 0 10px #adff2f; }
+
+        /* Specific Map Positions */
+        #btn-1a { top: 10px; left: 120px; height: 40px; } /* Stage */
+        #btn-1b { top: 60px; left: 110px; width: 65px; height: 50px; } /* Dining */
+        #btn-1c { top: 80px; left: 70px; } /* Cove */
+        #btn-5 { top: 40px; left: 70px; width: 30px; } /* Backstage */
+        #btn-2a { top: 130px; left: 110px; width: 30px; height: 50px; } /* W Hall */
+        #btn-2b { top: 190px; left: 110px; width: 30px; } /* W Corner */
+        #btn-4a { top: 130px; left: 145px; width: 30px; height: 50px; } /* E Hall */
+        #btn-4b { top: 190px; left: 145px; width: 30px; } /* E Corner */
+        #btn-6 { top: 140px; left: 190px; width: 50px; height: 40px; } /* Kitchen */
+        #btn-3 { top: 100px; left: 30px; } /* Supplies */
+
+        /* Flip Button */
+        #flip-trigger {
+            position: absolute; bottom: 0; left: 25%; width: 50%; height: 50px;
+            background: rgba(255,255,255,0.1); border: 1px solid white; border-bottom: none;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            color: #aaa; text-transform: uppercase; letter-spacing: 2px;
+            transition: 0.2s; pointer-events: auto;
+        }
+        #flip-trigger:hover { background: rgba(255,255,255,0.3); color: white; }
+
+        /* Jumpscare */
+        #scare-screen {
+            display: none; position: absolute; top:0; left:0; width:100%; height:100%;
+            background: black; z-index: 9999;
+        }
+        #scare-img { width: 100%; height: 100%; object-fit: cover; animation: shake 0.05s infinite; }
+
+        @keyframes blink { 0% {opacity:1;} 50% {opacity:0;} 100% {opacity:1;} }
+        @keyframes shake { 0% {transform:translate(2px,2px);} 100% {transform:translate(-2px,-2px);} }
+    </style>
+</head>
+<body>
+
+    <div id="screen-fx"></div>
+    <div id="static-noise"></div>
+
+    <div id="ui-layer">
+        
+        <div id="menu">
+            <h1>NIGHT SHIFT</h1>
+            <p>Ensure 'freddy.glb', 'wall.png', 'checker.png' are in folder.</p>
+            <button class="start-btn" onclick="startGame()">START NIGHT</button>
+        </div>
+
+        <div id="hud">
+            <div id="clock">12 AM</div>
+            <div id="power-stats">
+                POWER: <span id="pwr-val">100</span>%<br>
+                <div class="usage-box">
+                    USAGE: 
+                    <div class="usage-blk u-on"></div>
+                    <div class="usage-blk" id="u-2"></div>
+                    <div class="usage-blk" id="u-3"></div>
+                    <div class="usage-blk" id="u-4"></div>
+                    <div class="usage-blk" id="u-5"></div>
+                </div>
+            </div>
+
+            <div id="flip-trigger" onmousedown="toggleMonitor()">
+                <div style="background:white; width: 100%; height: 5px; position:absolute; bottom:5px;"></div>
+                &uarr; MONITOR &uarr;
+            </div>
+        </div>
+
+        <div id="monitor-panel">
+            <div id="cam-view">
+                <div id="cam-label"><span class="blink-dot"></span>CAM 1A<br><span style="font-size:18px; color:#ccc;">SHOW STAGE</span></div>
+                
+                <div id="map-overlay">
+                    <div id="btn-1a" class="map-btn map-active" onclick="switchCam('1A', 'SHOW STAGE')">CAM 1A</div>
+                    <div id="btn-1b" class="map-btn" onclick="switchCam('1B', 'DINING AREA')">CAM 1B</div>
+                    <div id="btn-1c" class="map-btn" onclick="switchCam('1C', 'PIRATE COVE')">CAM 1C</div>
+                    <div id="btn-5" class="map-btn" onclick="switchCam('5', 'BACKSTAGE')">CAM 5</div>
+                    <div id="btn-2a" class="map-btn" onclick="switchCam('2A', 'WEST HALL')">CAM 2A</div>
+                    <div id="btn-2b" class="map-btn" onclick="switchCam('2B', 'W. HALL CORNER')">CAM 2B</div>
+                    <div id="btn-4a" class="map-btn" onclick="switchCam('4A', 'EAST HALL')">CAM 4A</div>
+                    <div id="btn-4b" class="map-btn" onclick="switchCam('4B', 'E. HALL CORNER')">CAM 4B</div>
+                    <div id="btn-6" class="map-btn" onclick="switchCam('6', 'KITCHEN')">CAM 6</div>
+                    <div id="btn-3" class="map-btn" onclick="switchCam('3', 'SUPPLY CLOSET')">CAM 3</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="scare-screen">
+            <img id="scare-img" src="https://i.imgur.com/P3a8ikL.jpeg">
+        </div>
+    </div>
+
+    <a-scene loading-screen="enabled: false" background="color: #000" fog="type: exponential; color: #000; density: 0.15">
+        
+        <a-assets>
+            <img id="wall-tex" src="wall.png">
+            <img id="floor-tex" src="checker.png">
+            <a-asset-item id="freddy-glb" src="freddy.glb"></a-asset-item>
+            <audio id="sfx-blip" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8b8433b5d.mp3"></audio>
+            <audio id="sfx-scare" src="https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3"></audio>
+        </a-assets>
+
+        <a-entity position="0 0 15">
+            <a-plane rotation="-90 0 0" width="8" height="8" src="#floor-tex" repeat="4 4" color="#888"></a-plane>
+            <a-plane position="0 4 0" rotation="90 0 0" width="8" height="8" color="#111"></a-plane>
+            <a-box position="0 2 4" width="8" height="4" depth="0.5" src="#wall-tex" repeat="4 2" color="#666"></a-box>
+            <a-box position="-4 2 0" width="0.5" height="4" depth="8" src="#wall-tex" repeat="2 2" color="#666"></a-box>
+            <a-box position="4 2 0" width="0.5" height="4" depth="8" src="#wall-tex" repeat="2 2" color="#666"></a-box>
+            
+            <a-box position="0 1 -1" width="4" height="1" depth="1.5" color="#111"></a-box>
+            <a-box position="0 1.5 -1" width="0.5" height="0.5" depth="0.5" color="#333"></a-box> <a-box id="door-L" position="-3.5 2 -2" width="0.2" height="4" depth="0.2" color="#333" visible="false"></a-box>
+            <a-box id="door-R" position="3.5 2 -2" width="0.2" height="4" depth="0.2" color="#333" visible="false"></a-box>
+            
+            <a-box position="-3.6 1.5 -1.2" width="0.1" height="0.3" depth="0.1" color="red" class="clickable" onclick="handleDoor('L')"></a-box>
+            <a-box position="-3.6 1.0 -1.2" width="0.1" height="0.3" depth="0.1" color="white" class="clickable" onclick="handleLight('L')"></a-box>
+            
+            <a-box position="3.6 1.5 -1.2" width="0.1" height="0.3" depth="0.1" color="red" class="clickable" onclick="handleDoor('R')"></a-box>
+            <a-box position="3.6 1.0 -1.2" width="0.1" height="0.3" depth="0.1" color="white" class="clickable" onclick="handleLight('R')"></a-box>
+
+            <a-light id="light-L" type="spot" intensity="0" position="-3.5 3 -2" angle="35" target="#tgt-L"></a-light>
+            <a-entity id="tgt-L" position="-8 1 0"></a-entity>
+            
+            <a-light id="light-R" type="spot" intensity="0" position="3.5 3 -2" angle="35" target="#tgt-R"></a-light>
+            <a-entity id="tgt-R" position="8 1 0"></a-entity>
+        </a-entity>
+
+        <a-entity id="hall-w" position="-6 0 5">
+             <a-plane rotation="-90 0 0" width="4" height="20" src="#floor-tex" repeat="2 10" color="#444"></a-plane>
+             <a-box position="-2 2 0" width="0.2" height="4" depth="20" src="#wall-tex" color="#333"></a-box>
+        </a-entity>
+        <a-entity id="hall-e" position="6 0 5">
+             <a-plane rotation="-90 0 0" width="4" height="20" src="#floor-tex" repeat="2 10" color="#444"></a-plane>
+             <a-box position="2 2 0" width="0.2" height="4" depth="20" src="#wall-tex" color="#333"></a-box>
+        </a-entity>
+
+        <a-entity position="0 0 -5">
+            <a-plane rotation="-90 0 0" width="16" height="12" src="#floor-tex" repeat="8 6" color="#555"></a-plane>
+            <a-box position="-8 2 0" width="0.5" height="4" depth="12" src="#wall-tex" color="#444"></a-box>
+            <a-box position="8 2 0" width="0.5" height="4" depth="12" src="#wall-tex" color="#444"></a-box>
+            <a-box position="-4 0.5 0" width="2" height="0.1" depth="8" color="white"></a-box>
+            <a-box position="4 0.5 0" width="2" height="0.1" depth="8" color="white"></a-box>
+        </a-entity>
+
+        <a-entity position="0 0 -12">
+            <a-plane rotation="-90 0 0" width="12" height="6" src="#floor-tex" color="#444"></a-plane>
+            <a-box position="0 2 -3" width="12" height="4" depth="0.5" src="#wall-tex" color="#333"></a-box>
+            <a-box position="0 0.5 -1" width="8" height="1" depth="3" color="#311"></a-box> <a-light type="spot" intensity="1.2" position="0 5 2" target="#freddy-start" angle="45" penumbra="0.5"></a-light>
+        </a-entity>
+
+        <a-entity position="-10 0 -4">
+             <a-plane position="0 2 0" width="3" height="4" color="purple"></a-plane>
+             <a-text value="IT'S ME" position="0 2 0.1" align="center"></a-text>
+        </a-entity>
+
+        <a-entity position="12 0 -4">
+            <a-box position="0 2 0" width="6" height="4" depth="6" color="#000"></a-box>
+        </a-entity>
+
+
+        <a-entity id="freddy" position="0 1.5 -12"> <a-gltf-model src="#freddy-glb" scale="1 1 1"></a-gltf-model>
+            
+            <a-entity id="freddy-backup">
+                 <a-box color="#532" height="1.6" width="0.9" depth="0.5" position="0 0.8 0"></a-box>
+                 <a-sphere color="#532" radius="0.45" position="0 1.8 0"></a-sphere>
+                 <a-cylinder color="black" height="0.4" radius="0.3" position="0 2.3 0"></a-cylinder>
+            </a-entity>
+        </a-entity>
+
+        <a-entity id="bonnie" position="-2 1.5 -12"><a-box color="#55f" height="1.8" width="0.8" depth="0.5"></a-box></a-entity>
+        <a-entity id="chica" position="2 1.5 -12"><a-box color="#ff0" height="1.8" width="0.8" depth="0.5"></a-box></a-entity>
+
+
+        <a-entity id="player" position="0 1.6 15" rotation="0 180 0">
+            <a-camera id="cam" look-controls="pointerLockEnabled: true" wasd-controls="enabled: false">
+                 <a-cursor color="red" scale="0.5 0.5 0.5" raycaster="objects: .clickable"></a-cursor>
+                 <a-light type="point" intensity="0.3" distance="5"></a-light>
+            </a-camera>
+        </a-entity>
+
+    </a-scene>
+
+    <script>
+        // --- GAME STATE ---
+        let gameActive = false;
+        let power = 100;
+        let timeHour = 12;
+        let isMonitorUp = false;
+        
+        let doors = { L: false, R: false };
+        let lights = { L: false, R: false };
+
+        let ai = {
+            freddy: { pos: 0 }, // 0=Stage, 1=Dining, 2=Restrooms, 3=Kitchen, 4=E Hall, 5=Corner, 6=Door
+            bonnie: { pos: 0 },
+            chica: { pos: 0 }
+        };
+
+        // Camera Views (XYZ + Rotation)
+        const cams = {
+            '1A': { pos: '0 3 -10', rot: '0 180 0' }, // Stage
+            '1B': { pos: '0 4 -3', rot: '-20 180 0' }, // Dining
+            '1C': { pos: '-8 2 -2', rot: '0 90 0' }, // Cove
+            '5':  { pos: '-2 2 -14', rot: '0 0 0' }, // Backstage
+            '2A': { pos: '-6 3 0', rot: '0 180 0' }, // W Hall
+            '2B': { pos: '-6 2 10', rot: '0 0 0' }, // W Corner
+            '4A': { pos: '6 3 0', rot: '0 180 0' }, // E Hall
+            '4B': { pos: '6 2 10', rot: '0 0 0' }, // E Corner
+            '6':  { pos: '15 2 -4', rot: '0 0 0' }, // Kitchen (Dark)
+            '3':  { pos: '-10 2 5', rot: '0 0 0' } // Supply
+        };
+
+        // --- CORE FUNCTIONS ---
+        function startGame() {
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            gameActive = true;
+            
+            // Start loops
+            setInterval(updateClock, 8000); // 8s per hour (Fast for demo)
+            setInterval(updatePower, 1000); 
+            setInterval(aiTick, 4000);
+        }
+
+        function updateClock() {
+            if(!gameActive) return;
+            timeHour++;
+            if(timeHour === 13) timeHour = 1;
+            document.getElementById('clock').innerText = timeHour + (timeHour === 12 ? " PM" : " AM");
+            if(timeHour === 6) { gameActive = false; alert("6 AM - YOU SURVIVED"); location.reload(); }
+        }
+
+        function updatePower() {
+            if(!gameActive) return;
+            
+            let usage = 1; // Fan
+            if(doors.L) usage++; if(doors.R) usage++;
+            if(lights.L) usage++; if(lights.R) usage++;
+            if(isMonitorUp) usage++;
+
+            // Update Bars
+            for(let i=2; i<=5; i++) {
+                document.getElementById('u-'+i).className = "usage-blk " + (i <= usage ? "u-on" : "");
+            }
+
+            power -= (usage * 0.2);
+            if(power <= 0) powerOutage();
+            document.getElementById('pwr-val').innerText = Math.floor(power);
+        }
+
+        // --- INTERACTION ---
+        function handleDoor(side) {
+            if(power <= 0) return;
+            doors[side] = !doors[side];
+            // Play Sound (Assuming you add Door SFX later)
+            document.getElementById('door-'+side).setAttribute('visible', doors[side]);
+        }
+
+        function handleLight(side) {
+            if(power <= 0) return;
+            lights[side] = !lights[side];
+            // Toggle Logic
+            if(side === 'L') { lights.R = false; document.getElementById('light-R').setAttribute('intensity', 0); }
+            if(side === 'R') { lights.L = false; document.getElementById('light-L').setAttribute('intensity', 0); }
+            
+            document.getElementById('light-'+side).setAttribute('intensity', lights[side] ? 1.5 : 0);
+            
+            // Check for Jumpscare (If AI is at door)
+            if(side === 'L' && ai.bonnie.pos === 4 && lights[side]) alert("Bonnie is at the door!");
+        }
+
+        // --- MONITOR SYSTEM ---
+        function toggleMonitor() {
+            if(power <= 0) return;
+            isMonitorUp = !isMonitorUp;
+            const panel = document.getElementById('monitor-panel');
+            const rig = document.getElementById('player');
+            const trigger = document.getElementById('flip-trigger');
+            
+            if(isMonitorUp) {
+                // FLIP UP
+                panel.classList.add('monitor-up');
+                trigger.innerHTML = "&darr; DOWN &darr;";
+                document.getElementById('sfx-blip').play();
+                switchCam('1A', 'SHOW STAGE'); // Default
+            } else {
+                // FLIP DOWN
+                panel.classList.remove('monitor-up');
+                trigger.innerHTML = "&uarr; MONITOR &uarr;";
+                rig.setAttribute('position', '0 1.6 15');
+                rig.setAttribute('rotation', '0 180 0');
+                document.querySelector('a-scene').setAttribute('fog', 'density: 0.15');
+            }
+        }
+
+        function switchCam(id, label) {
+            // Update UI
+            document.querySelectorAll('.map-btn').forEach(b => b.classList.remove('map-active'));
+            document.getElementById('btn-'+id.toLowerCase()).classList.add('map-active');
+            
+            // Update Label text inside Cam
+            const camLabel = document.getElementById('cam-label');
+            camLabel.innerHTML = `<span class="blink-dot"></span>CAM ${id}<br><span style="font-size:18px; color:#ccc;">${label}</span>`;
+
+            // Move 3D Camera
+            const rig = document.getElementById('player');
+            const data = cams[id];
+            rig.setAttribute('position', data.pos);
+            rig.setAttribute('rotation', data.rot);
+
+            // Audio only check
+            if(id === '6') document.querySelector('a-scene').setAttribute('fog', 'density: 1.0'); // Blackout
+            else document.querySelector('a-scene').setAttribute('fog', 'density: 0.15');
+
+            // Static Glitch
+            const noise = document.getElementById('static-noise');
+            noise.style.opacity = 0.5;
+            setTimeout(() => noise.style.opacity = 0.08, 150);
+            document.getElementById('sfx-blip').play();
+        }
+
+        // --- AI MOVEMENT (Simple Freddy Patrol) ---
+        function aiTick() {
+            if(!gameActive) return;
+            
+            // Move Freddy
+            ai.freddy.pos++;
+            const fred = document.getElementById('freddy');
+            
+            // 0=Stage, 1=Dining, 2=Restrooms, 3=Kitchen, 4=E Hall, 5=Corner, 6=Door
+            if(ai.freddy.pos === 1) fred.setAttribute('position', '2 1.5 -5'); // Dining
+            if(ai.freddy.pos === 4) fred.setAttribute('position', '6 0 5'); // Hall
+            if(ai.freddy.pos === 5) fred.setAttribute('position', '6 0 12'); // Corner
+            if(ai.freddy.pos === 6) fred.setAttribute('position', '4 0 14'); // Door
+            
+            if(ai.freddy.pos > 6) {
+                if(doors.R) {
+                    ai.freddy.pos = 4; // Blocked, go back
+                } else {
+                    jumpscare();
+                }
+            }
+        }
+
+        function jumpscare() {
+            gameActive = false;
+            document.getElementById('ui-layer').style.display = 'none'; // Hide UI
+            document.getElementById('scare-screen').style.display = 'block';
+            document.getElementById('sfx-scare').play();
+            setTimeout(() => location.reload(), 2000);
+        }
+
+        function powerOutage() {
+            gameActive = false;
+            toggleMonitor(); // Force down
+            document.getElementById('power-stats').style.color = 'red';
+            setTimeout(jumpscare, 5000);
+        }
+
+    </script>
+</body>
+</html>
